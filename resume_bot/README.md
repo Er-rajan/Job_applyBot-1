@@ -60,4 +60,4 @@ crontab -l
 - Use valid credentials in `config.py`
 - Apna login requires OTP input
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
-  6000
+  
