@@ -5,6 +5,7 @@ import asyncio
 from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
+from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.tracker import is_duplicate_application, log_application
 
 
@@ -20,6 +21,7 @@ class IndeedBot:
         self.base_url = "https://in.indeed.com"
         self.platform_name = "Indeed"
         self.dry_run = bool(config.get("dry_run", False))
+        self.application_profile = build_application_profile(config)
 
     async def login(self, page: Page):
         print("Indeed login started")
@@ -107,6 +109,10 @@ class IndeedBot:
                 await asyncio.sleep(2)
 
                 for _ in range(5):
+                    filled_count = await autofill_application_questions(page, self.application_profile)
+                    if filled_count:
+                        print(f"Indeed autofilled {filled_count} fields")
+
                     next_btn = await first_visible(
                         page,
                         [
@@ -119,6 +125,10 @@ class IndeedBot:
                         break
                     await next_btn.click()
                     await asyncio.sleep(1)
+
+                filled_count = await autofill_application_questions(page, self.application_profile)
+                if filled_count:
+                    print(f"Indeed autofilled {filled_count} fields")
 
                 submit_btn = await first_visible(
                     page,
@@ -169,6 +179,7 @@ class ApnaBot:
         self.base_url = "https://apna.co"
         self.platform_name = "Apna"
         self.dry_run = bool(config.get("dry_run", False))
+        self.application_profile = build_application_profile(config)
 
     async def login(self, page: Page):
         print("Apna login started")
@@ -252,6 +263,26 @@ class ApnaBot:
                 if apply_btn:
                     await apply_btn.click()
                     await asyncio.sleep(2)
+
+                    for _ in range(3):
+                        filled_count = await autofill_application_questions(page, self.application_profile)
+                        if filled_count:
+                            print(f"Apna autofilled {filled_count} fields")
+
+                        step_btn = await first_visible(
+                            page,
+                            [
+                                "button:has-text('Continue')",
+                                "button:has-text('Next')",
+                                "button:has-text('Submit')",
+                                "button:has-text('Apply')",
+                            ],
+                        )
+                        if not step_btn:
+                            break
+                        await step_btn.click()
+                        await asyncio.sleep(1)
+
                     self.applied_count += 1
                     log_application(
                         self.platform_name,

@@ -18,6 +18,7 @@ Edit `config.py` and set:
 - target job titles and locations
 - resume path (`data/my_resume.pdf` by default)
 - `headless=False` for first-time debugging
+- `application_profile` values like `cgpa`, `college`, `tenth_percentage`, `twelfth_percentage`, `source`, and `location` for form auto-fill
 
 Place your resume at:
 - `resume_bot/data/my_resume.pdf`
@@ -59,5 +60,6 @@ crontab -l
 
 - Use valid credentials in `config.py`
 - Apna login requires OTP input
+- Application forms with common questions (CGPA/college/10th-12th/source/location/etc.) are auto-filled from `application_profile`
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
 ok

@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
+from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.tracker import is_duplicate_application, log_application
 
 
@@ -21,6 +22,7 @@ class NaukriBot:
         self.base_url = "https://www.naukri.com"
         self.platform_name = "Naukri"
         self.dry_run = bool(config.get("dry_run", False))
+        self.application_profile = build_application_profile(config)
 
     async def login(self, page: Page):
         print("Naukri login started")
@@ -136,6 +138,24 @@ class NaukriBot:
 
             await apply_btn.click()
             await asyncio.sleep(2)
+
+            for _ in range(4):
+                filled_count = await autofill_application_questions(job_page, self.application_profile)
+                if filled_count:
+                    print(f"Naukri autofilled {filled_count} fields")
+
+                next_btn = await first_visible(
+                    job_page,
+                    [
+                        "button:has-text('Continue')",
+                        "button:has-text('Next')",
+                        "button:has-text('Save & Continue')",
+                    ],
+                )
+                if not next_btn:
+                    break
+                await next_btn.click()
+                await asyncio.sleep(1)
 
             already_applied = await job_page.query_selector("text=already applied")
             if already_applied:

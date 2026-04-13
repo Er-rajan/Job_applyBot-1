@@ -5,6 +5,7 @@ import asyncio
 from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
+from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.tracker import is_duplicate_application, log_application
 
 
@@ -19,6 +20,7 @@ class InternshalaBot:
         self.base_url = "https://internshala.com"
         self.platform_name = "Internshala"
         self.dry_run = bool(config.get("dry_run", False))
+        self.application_profile = build_application_profile(config)
 
     async def login(self, page: Page):
         print("Internshala login started")
@@ -138,6 +140,10 @@ class InternshalaBot:
 
             await apply_btn.click()
             await asyncio.sleep(2)
+
+            filled_count = await autofill_application_questions(page, self.application_profile)
+            if filled_count:
+                print(f"Internshala autofilled {filled_count} fields")
 
             cover_letter = await first_visible(page, ["textarea.cover_letter_ta", "textarea[name='cover_letter']"])
             if cover_letter:

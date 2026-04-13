@@ -7,6 +7,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 TRACKER_FILE = DATA_DIR / "applications.csv"
+EXTERNAL_LINKS_FILE = DATA_DIR / "external_job_links.csv"
 HEADERS = [
     "Date",
     "Time",
@@ -17,6 +18,16 @@ HEADERS = [
     "Salary",
     "Status",
     "Job URL",
+    "Notes",
+]
+EXTERNAL_HEADERS = [
+    "Date",
+    "Time",
+    "Platform",
+    "Company",
+    "Job Title",
+    "Job URL",
+    "External URL",
     "Notes",
 ]
 
@@ -32,6 +43,11 @@ def init_tracker():
             writer = csv.writer(f)
             writer.writerow(HEADERS)
         print(f"Tracker file created: {TRACKER_FILE}")
+    if not EXTERNAL_LINKS_FILE.exists():
+        with open(EXTERNAL_LINKS_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(EXTERNAL_HEADERS)
+        print(f"External links file created: {EXTERNAL_LINKS_FILE}")
 
 
 def is_duplicate_application(platform: str, company: str, job_title: str, job_url: str = "") -> bool:
@@ -132,3 +148,29 @@ def update_status(job_url, new_status, notes=""):
         print(f"Status updated: {new_status}")
     else:
         print(f"URL not found: {job_url}")
+
+
+def log_external_link(
+    platform: str,
+    company: str,
+    job_title: str,
+    job_url: str,
+    external_url: str,
+    notes: str = "",
+):
+    init_tracker()
+    now = datetime.now()
+    row = [
+        now.strftime("%Y-%m-%d"),
+        now.strftime("%H:%M:%S"),
+        platform,
+        company,
+        job_title,
+        job_url,
+        external_url,
+        notes,
+    ]
+    with open(EXTERNAL_LINKS_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(row)
+    print(f"External link logged: {external_url}")
