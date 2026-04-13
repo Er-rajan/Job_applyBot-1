@@ -1,0 +1,5 @@
+time: 2026-04-13T14:37:42.377853
+platform: Indeed
+step: search_and_apply
+error: TargetClosedError: ElementHandle.query_selector: Target page, context or browser has been closed
+url: https://in.indeed.com/jobs?q=Python+Developer&l=Mumbai&vjk=97fd46ffcaf91d9f

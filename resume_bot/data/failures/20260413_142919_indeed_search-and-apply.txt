@@ -1,0 +1,5 @@
+time: 2026-04-13T14:29:19.747342
+platform: Indeed
+step: search_and_apply
+error: Error: ElementHandle.query_selector: Protocol error (DOM.describeNode): Cannot find context with specified id
+url: https://in.indeed.com/notifications?from=gnav-util-jobsearch--indeedmobile&gnavTK=1jm311a9uha9l802&tk=1jm311a11hc288aa&hl=en

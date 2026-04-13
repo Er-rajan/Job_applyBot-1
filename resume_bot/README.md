@@ -74,3 +74,23 @@ crontab -l
 - External company application links are handled in best-effort mode and logged with `Handled`/`Applied` true-false status
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
 ok
+
+
+
+cd /home/rajan/Downloads/resume_bot_v2/resume_bot
+
+First test (safe):
+python3 main.py --dry-run --force
+
+Real apply:
+python3 main.py --force
+
+Single platform:
+python3 main.py --platform indeed --force
+
+How many times:
+
+One manual run = one full session (then stops).
+Your cron is already set to run 8 times/day:
+08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00, 22:00
+Per run, max applies are controlled by max_applications_per_day in config.py (currently 20).
