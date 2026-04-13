@@ -1,6 +1,7 @@
 """Browser reliability helpers for Playwright bots."""
 
 import asyncio
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
@@ -58,6 +59,13 @@ async def safe_click(page: Page, selectors: Iterable[str], attempts: int = 3) ->
         return True
 
     return await retry(_do_click, attempts=attempts)
+
+
+async def human_pause(base_delay: float, jitter_min: float = 0.6, jitter_max: float = 2.0):
+    """Sleep with random jitter to avoid very fast repetitive actions."""
+    low = max(0.0, min(jitter_min, jitter_max))
+    high = max(jitter_min, jitter_max)
+    await asyncio.sleep(max(0.0, base_delay) + random.uniform(low, high))
 
 
 def _sanitize(value: str) -> str:

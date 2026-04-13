@@ -5,7 +5,7 @@ from urllib.parse import quote_plus
 
 from playwright.async_api import Page
 
-from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
+from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
 from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
@@ -18,6 +18,8 @@ class NaukriBot:
         self.job_titles = config["job_titles"]
         self.locations = config["locations"]
         self.delay = config["delay_between_actions"]
+        self.delay_jitter_min = float(config.get("delay_jitter_min", 0.8))
+        self.delay_jitter_max = float(config.get("delay_jitter_max", 2.0))
         self.max_apps = config["max_applications_per_day"]
         self.applied_count = 0
         self.base_url = "https://www.naukri.com"
@@ -31,34 +33,36 @@ class NaukriBot:
     async def login(self, page: Page):
         print("Naukri login started")
         try:
-            await safe_goto(page, f"{self.base_url}/nlogin/login")
-            await asyncio.sleep(self.delay)
+            for attempt in range(1, 3):
+                await safe_goto(page, f"{self.base_url}/nlogin/login")
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
-            email_ok = await safe_fill(
-                page,
-                [
-                    "input[placeholder='Enter your active Email ID / Username']",
-                    "input[type='email']",
-                    "input[type='text']",
-                ],
-                self.email,
-            )
-            password_ok = await safe_fill(
-                page,
-                ["input[placeholder='Enter your password']", "input[type='password']"],
-                self.password,
-            )
-            submit_ok = await safe_click(page, ["button[type='submit']"])
+                email_ok = await safe_fill(
+                    page,
+                    [
+                        "input[placeholder='Enter your active Email ID / Username']",
+                        "input[type='email']",
+                        "input[type='text']",
+                    ],
+                    self.email,
+                )
+                password_ok = await safe_fill(
+                    page,
+                    ["input[placeholder='Enter your password']", "input[type='password']"],
+                    self.password,
+                )
+                submit_ok = await safe_click(page, ["button[type='submit']"])
 
-            if not (email_ok and password_ok and submit_ok):
-                print("Naukri login form elements not found")
-                return False
+                if not (email_ok and password_ok and submit_ok):
+                    print("Naukri login form elements not found")
+                    return False
 
-            await asyncio.sleep(4)
-            if "login" not in page.url:
-                print("Naukri login successful")
-                return True
-
+                await human_pause(self.delay + 1, self.delay_jitter_min, self.delay_jitter_max)
+                profile_hint = await first_visible(page, [".nI-gNb-drawer", ".view-profile-wrapper"])
+                if "login" not in page.url or profile_hint:
+                    print("Naukri login successful")
+                    return True
+                print(f"Naukri login retry {attempt}/2")
             print("Naukri login failed")
             return False
         except Exception as exc:  # noqa: BLE001
@@ -74,7 +78,7 @@ class NaukriBot:
 
         try:
             await safe_goto(page, search_url)
-            await asyncio.sleep(self.delay)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
             cards = await page.query_selector_all(".jobTuple")
             print(f"Naukri listings found: {len(cards)}")
             return cards
@@ -101,7 +105,7 @@ class NaukriBot:
 
             before_pages = list(page.context.pages)
             await title_el.click()
-            await asyncio.sleep(self.delay)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
             after_pages = list(page.context.pages)
             job_page = after_pages[-1] if len(after_pages) > len(before_pages) else page
             job_url = job_page.url
@@ -170,7 +174,7 @@ class NaukriBot:
                 return False
 
             await apply_btn.click()
-            await asyncio.sleep(2)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
             for _ in range(4):
                 filled_count = await autofill_application_questions(job_page, self.application_profile)
@@ -188,7 +192,7 @@ class NaukriBot:
                 if not next_btn:
                     break
                 await next_btn.click()
-                await asyncio.sleep(1)
+                await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
 
             already_applied = await job_page.query_selector("text=already applied")
             if already_applied:
@@ -231,6 +235,6 @@ class NaukriBot:
                     if self.applied_count >= self.max_apps:
                         break
                     await self.apply_to_job(page, card)
-                    await asyncio.sleep(self.delay)
+                    await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
         print(f"Naukri bot done. Applied: {self.applied_count}")

@@ -17,12 +17,18 @@ Edit `config.py` and set:
 - your credentials for each enabled platform
 - target job titles and locations
 - resume path (`data/my_resume.pdf` by default)
+- browser settings (`browser.engine`, `browser.channel`, `browser.executable_path`)
 - `headless=False` for first-time debugging
 - `application_profile` values like `cgpa`, `college`, `tenth_percentage`, `twelfth_percentage`, `source`, and `location` for form auto-fill
 - `requirement_keywords` and `min_keyword_matches` for requirement-based apply filtering
 
 Place your resume at:
 - `resume_bot/data/my_resume.pdf`
+
+Browser examples in `config.py`:
+- Chrome: `engine="chromium"`, `channel="chrome"`, `executable_path=""`
+- Edge: `engine="chromium"`, `channel="msedge"`, `executable_path=""`
+- Brave: `engine="chromium"`, `channel=""`, `executable_path="/usr/bin/brave-browser"`
 
 ## Run
 
@@ -67,5 +73,4 @@ crontab -l
 - External company application links are saved to `data/external_job_links.csv`
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
 ok
-
 

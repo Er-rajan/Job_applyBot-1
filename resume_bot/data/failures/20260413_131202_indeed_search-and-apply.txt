@@ -1,0 +1,5 @@
+time: 2026-04-13T13:12:02.792676
+platform: Indeed
+step: search_and_apply
+error: TargetClosedError: Page.goto: Target page, context or browser has been closed
+url: https://in.indeed.com/jobs?q=Full+Stack+Developer&l=Delhi&vjk=f90e77b6af586430

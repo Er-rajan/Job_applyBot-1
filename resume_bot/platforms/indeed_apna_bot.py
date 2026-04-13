@@ -4,7 +4,7 @@ import asyncio
 
 from playwright.async_api import Page
 
-from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
+from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
 from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
@@ -17,6 +17,8 @@ class IndeedBot:
         self.job_titles = config["job_titles"]
         self.locations = config["locations"]
         self.delay = config["delay_between_actions"]
+        self.delay_jitter_min = float(config.get("delay_jitter_min", 0.8))
+        self.delay_jitter_max = float(config.get("delay_jitter_max", 2.0))
         self.max_apps = config["max_applications_per_day"]
         self.applied_count = 0
         self.base_url = "https://in.indeed.com"
@@ -30,27 +32,32 @@ class IndeedBot:
     async def login(self, page: Page):
         print("Indeed login started")
         try:
-            await safe_goto(page, f"{self.base_url}/account/login")
-            await asyncio.sleep(2)
+            for attempt in range(1, 3):
+                await safe_goto(page, f"{self.base_url}/account/login")
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
-            email_ok = await safe_fill(page, ["input[name='__email']", "input[type='email']"], self.email)
-            if email_ok:
-                await page.keyboard.press("Enter")
-                await asyncio.sleep(2)
+                email_ok = await safe_fill(page, ["input[name='__email']", "input[type='email']"], self.email)
+                if email_ok:
+                    await page.keyboard.press("Enter")
+                    await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
-            password_ok = await safe_fill(
-                page,
-                ["input[name='__password']", "input[type='password']"],
-                self.password,
-            )
-            if password_ok:
-                await page.keyboard.press("Enter")
-                await asyncio.sleep(3)
+                password_ok = await safe_fill(
+                    page,
+                    ["input[name='__password']", "input[type='password']"],
+                    self.password,
+                )
+                if password_ok:
+                    await page.keyboard.press("Enter")
+                    await human_pause(self.delay + 1, self.delay_jitter_min, self.delay_jitter_max)
 
-            if "account/login" not in page.url:
-                print("Indeed login successful")
-                return True
-
+                account_badge = await first_visible(
+                    page,
+                    ["a[data-testid='AccountMenu']", "button[aria-label*='Account']", "a[href*='/account']"],
+                )
+                if "account/login" not in page.url or account_badge:
+                    print("Indeed login successful")
+                    return True
+                print(f"Indeed login retry {attempt}/2")
             print("Indeed login failed")
             return False
         except Exception as exc:  # noqa: BLE001
@@ -64,7 +71,7 @@ class IndeedBot:
 
         try:
             await safe_goto(page, search_url)
-            await asyncio.sleep(self.delay)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
             jobs = await page.query_selector_all("div.job_seen_beacon")
             print(f"Indeed listings found: {len(jobs)}")
 
@@ -83,7 +90,7 @@ class IndeedBot:
                 location_text = (await location_el.inner_text()).strip() if location_el else location
 
                 await title_el.click()
-                await asyncio.sleep(2)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
                 job_url = page.url
 
                 if is_duplicate_application(self.platform_name, company, title, job_url):
@@ -139,7 +146,7 @@ class IndeedBot:
                     continue
 
                 await apply_btn.click()
-                await asyncio.sleep(2)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
                 for _ in range(5):
                     filled_count = await autofill_application_questions(page, self.application_profile)
@@ -157,7 +164,7 @@ class IndeedBot:
                     if not next_btn:
                         break
                     await next_btn.click()
-                    await asyncio.sleep(1)
+                    await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
 
                 filled_count = await autofill_application_questions(page, self.application_profile)
                 if filled_count:
@@ -171,7 +178,7 @@ class IndeedBot:
                     continue
 
                 await submit_btn.click()
-                await asyncio.sleep(2)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
                 self.applied_count += 1
                 log_application(
                     self.platform_name,
@@ -183,7 +190,7 @@ class IndeedBot:
                     notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                 )
                 print(f"Indeed applied: {company} - {title}")
-                await asyncio.sleep(self.delay)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
         except Exception as exc:  # noqa: BLE001
             await capture_failure(page, self.platform_name, "search_and_apply", exc)
             print(f"Indeed search/apply error: {exc}")
@@ -198,7 +205,7 @@ class IndeedBot:
                 if self.applied_count >= self.max_apps:
                     break
                 await self.search_and_apply(page, job_title, location)
-                await asyncio.sleep(self.delay)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
         print(f"Indeed bot done. Applied: {self.applied_count}")
 
@@ -208,6 +215,9 @@ class ApnaBot:
         self.phone = config["platforms"]["apna"]["phone"]
         self.job_titles = config["job_titles"]
         self.delay = config["delay_between_actions"]
+        self.delay_jitter_min = float(config.get("delay_jitter_min", 0.8))
+        self.delay_jitter_max = float(config.get("delay_jitter_max", 2.0))
+        self.otp_wait_seconds = int(config.get("otp_wait_seconds", 90))
         self.max_apps = config["max_applications_per_day"]
         self.applied_count = 0
         self.base_url = "https://apna.co"
@@ -222,10 +232,10 @@ class ApnaBot:
         print("Apna login started")
         try:
             await safe_goto(page, f"{self.base_url}/jobs")
-            await asyncio.sleep(2)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
             await safe_click(page, ["button:has-text('Login')", "button:has-text('Sign in')"])
-            await asyncio.sleep(2)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
             phone_ok = await safe_fill(page, ["input[type='tel']", "input[name='mobile']"], self.phone)
             if not phone_ok:
@@ -237,10 +247,17 @@ class ApnaBot:
                 print("Apna OTP button not found")
                 return False
 
-            print("OTP sent. Enter OTP manually in browser window.")
-            await asyncio.sleep(30)
-            print("Apna login attempt complete")
-            return True
+            print(f"OTP sent. Enter OTP manually in browser window (wait up to {self.otp_wait_seconds}s).")
+            checks = max(1, self.otp_wait_seconds // 3)
+            for _ in range(checks):
+                login_inputs = await first_visible(page, ["input[type='tel']", "button:has-text('Send OTP')"])
+                if not login_inputs:
+                    print("Apna login successful")
+                    return True
+                await asyncio.sleep(3)
+
+            print("Apna login timeout")
+            return False
         except Exception as exc:  # noqa: BLE001
             await capture_failure(page, self.platform_name, "login", exc)
             print(f"Apna login error: {exc}")
@@ -256,7 +273,7 @@ class ApnaBot:
             )
             if search_ok:
                 await page.keyboard.press("Enter")
-                await asyncio.sleep(self.delay)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
             jobs = await page.query_selector_all(".job-card, .job-listing")
             print(f"Apna listings found: {len(jobs)}")
@@ -271,14 +288,14 @@ class ApnaBot:
                 company = (await company_el.inner_text()).strip() if company_el else "Unknown"
 
                 await job.click()
-                await asyncio.sleep(2)
+                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
                 job_url = page.url
 
                 if is_duplicate_application(self.platform_name, company, title, job_url):
                     print(f"Skipped duplicate: {company} - {title}")
                     if "apna.co/jobs" not in page.url:
                         await page.go_back()
-                        await asyncio.sleep(1)
+                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
                     continue
 
                 job_text = await extract_job_text(page)
@@ -298,7 +315,7 @@ class ApnaBot:
                     print(f"Skipped keyword mismatch: {company} - {title}")
                     if "apna.co/jobs" not in page.url:
                         await page.go_back()
-                        await asyncio.sleep(1)
+                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
                     continue
 
                 external_links = await find_external_links(page, self.platform_domains)
@@ -325,13 +342,13 @@ class ApnaBot:
                     print(f"Dry run logged: {company} - {title}")
                     if "apna.co/jobs" not in page.url:
                         await page.go_back()
-                        await asyncio.sleep(1)
+                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
                     continue
 
                 apply_btn = await first_visible(page, ["button:has-text('Apply')", "button:has-text('Apply Now')"])
                 if apply_btn:
                     await apply_btn.click()
-                    await asyncio.sleep(2)
+                    await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
                     for _ in range(3):
                         filled_count = await autofill_application_questions(page, self.application_profile)
@@ -350,7 +367,7 @@ class ApnaBot:
                         if not step_btn:
                             break
                         await step_btn.click()
-                        await asyncio.sleep(1)
+                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
 
                     self.applied_count += 1
                     log_application(
@@ -366,7 +383,7 @@ class ApnaBot:
 
                 if "apna.co/jobs" not in page.url:
                     await page.go_back()
-                    await asyncio.sleep(1)
+                    await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
         except Exception as exc:  # noqa: BLE001
             await capture_failure(page, self.platform_name, "search_and_apply", exc)
             print(f"Apna search/apply error: {exc}")
@@ -380,6 +397,6 @@ class ApnaBot:
             if self.applied_count >= self.max_apps:
                 break
             await self.search_and_apply(page, job_title)
-            await asyncio.sleep(self.delay)
+            await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
         print(f"Apna bot done. Applied: {self.applied_count}")

@@ -1,0 +1,8 @@
+time: 2026-04-13T13:10:55.331357
+platform: Indeed
+step: search_and_apply
+error: Error: ElementHandle.get_attribute: Execution context was destroyed, most likely because of a navigation
+Call log:
+  - waiting for locator(":scope")
+
+url: https://in.indeed.com/jobs?q=Backend+Developer&l=Mumbai&vjk=376c84f54bcea8ed

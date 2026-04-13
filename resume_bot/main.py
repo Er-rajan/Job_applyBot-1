@@ -48,6 +48,28 @@ def resolve_resume_path() -> Path:
     return BASE_DIR / resume_path
 
 
+def resolve_browser_settings(config: dict) -> tuple[str, dict]:
+    browser_cfg = config.get("browser", {})
+    engine = str(browser_cfg.get("engine", "chromium")).strip().lower()
+    if engine not in {"chromium", "firefox", "webkit"}:
+        engine = "chromium"
+
+    launch_options = {"headless": bool(config.get("headless", False))}
+    if engine == "chromium":
+        launch_options["args"] = ["--no-sandbox", "--disable-blink-features=AutomationControlled"]
+
+        executable_path = str(browser_cfg.get("executable_path", "")).strip()
+        channel = str(browser_cfg.get("channel", "")).strip().lower()
+
+        # Prefer executable_path when user wants a custom Chromium browser like Brave.
+        if executable_path:
+            launch_options["executable_path"] = executable_path
+        elif channel:
+            launch_options["channel"] = channel
+
+    return engine, launch_options
+
+
 async def run_bots(platforms: list[str] | None = None, dry_run: bool = False):
     init_tracker()
     log("RESUME BOT START")
@@ -62,10 +84,15 @@ async def run_bots(platforms: list[str] | None = None, dry_run: bool = False):
         log(f"Warning: Resume file missing at {resume_file}")
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            headless=CONFIG["headless"],
-            args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
-        )
+        engine, launch_options = resolve_browser_settings(CONFIG)
+        log(f"Browser engine: {engine}")
+        if launch_options.get("channel"):
+            log(f"Browser channel: {launch_options['channel']}")
+        if launch_options.get("executable_path"):
+            log(f"Browser executable: {launch_options['executable_path']}")
+
+        browser_launcher = getattr(playwright, engine)
+        browser = await browser_launcher.launch(**launch_options)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             viewport={"width": 1280, "height": 800},

@@ -80,6 +80,15 @@ CONFIG = {
 
     # Resume file path (relative to project root or absolute)
     "resume_path": "data/my_resume.pdf",
+    "browser": {
+        # engine: chromium/firefox/webkit (chrome, edge, brave use chromium engine)
+        "engine": "chromium",
+        # channel options with chromium engine: chrome, msedge, chromium
+        # leave empty when using executable_path (for Brave/custom browser)
+        "channel": "chrome",
+        # for Brave set full binary path, e.g. /usr/bin/brave-browser
+        "executable_path": "",
+    },
 
     # Platform Credentials
     "platforms": {
@@ -105,7 +114,10 @@ CONFIG = {
     },
 
     # Runtime Settings
-    "max_applications_per_day": 20,
-    "delay_between_actions": 2,
+    "max_applications_per_day": 50,
+    "delay_between_actions": 4,
+    "delay_jitter_min": 0.8,
+    "delay_jitter_max": 2.2,
+    "otp_wait_seconds": 120,
     "headless": False,
 }
