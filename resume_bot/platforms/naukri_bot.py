@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
+from utils.external_apply import handle_external_link
 from utils.form_autofill import autofill_application_questions, build_application_profile
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
@@ -29,6 +30,7 @@ class NaukriBot:
         self.requirement_keywords = list(config.get("requirement_keywords", []))
         self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
         self.platform_domains = ["naukri.com"]
+        self.max_external_links = int(config.get("max_external_links_per_job", 2))
 
     async def login(self, page: Page):
         print("Naukri login started")
@@ -134,14 +136,17 @@ class NaukriBot:
                 return False
 
             external_links = await find_external_links(job_page, self.platform_domains)
-            for external_url in external_links[:3]:
+            for external_url in external_links[: self.max_external_links]:
+                handled, applied, message = await handle_external_link(job_page, external_url, dry_run=self.dry_run)
                 log_external_link(
                     self.platform_name,
                     company,
                     title,
                     job_url,
                     external_url,
-                    notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
+                    handled=handled,
+                    applied=applied,
+                    notes=f"{message} | Matched keywords: " + ", ".join(matched_keywords[:8]),
                 )
 
             if self.dry_run:

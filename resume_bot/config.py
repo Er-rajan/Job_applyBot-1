@@ -57,6 +57,7 @@ CONFIG = {
         "data visualization",
     ],
     "min_keyword_matches": 1,
+    "max_external_links_per_job": 2,
     "application_profile": {
         "current_company": "Oplus Cowork",
         "current_job_title": "Robotics and AI Intern",
@@ -114,7 +115,7 @@ CONFIG = {
     },
 
     # Runtime Settings
-    "max_applications_per_day": 50,
+    "max_applications_per_day": 30,
     "delay_between_actions": 4,
     "delay_jitter_min": 0.8,
     "delay_jitter_max": 2.2,

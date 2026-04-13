@@ -28,6 +28,8 @@ EXTERNAL_HEADERS = [
     "Job Title",
     "Job URL",
     "External URL",
+    "Handled",
+    "Applied",
     "Notes",
 ]
 
@@ -48,6 +50,39 @@ def init_tracker():
             writer = csv.writer(f)
             writer.writerow(EXTERNAL_HEADERS)
         print(f"External links file created: {EXTERNAL_LINKS_FILE}")
+    else:
+        with open(EXTERNAL_LINKS_FILE, "r", encoding="utf-8") as f:
+            first_line = f.readline().strip()
+        current_headers = [h.strip() for h in first_line.split(",")] if first_line else []
+        if current_headers != EXTERNAL_HEADERS:
+            _migrate_external_links_file()
+
+
+def _migrate_external_links_file():
+    rows: list[dict] = []
+    with open(EXTERNAL_LINKS_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(row)
+
+    with open(EXTERNAL_LINKS_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(EXTERNAL_HEADERS)
+        for row in rows:
+            writer.writerow(
+                [
+                    row.get("Date", ""),
+                    row.get("Time", ""),
+                    row.get("Platform", ""),
+                    row.get("Company", ""),
+                    row.get("Job Title", ""),
+                    row.get("Job URL", ""),
+                    row.get("External URL", ""),
+                    row.get("Handled", ""),
+                    row.get("Applied", ""),
+                    row.get("Notes", ""),
+                ]
+            )
 
 
 def is_duplicate_application(platform: str, company: str, job_title: str, job_url: str = "") -> bool:
@@ -156,6 +191,8 @@ def log_external_link(
     job_title: str,
     job_url: str,
     external_url: str,
+    handled: bool | None = None,
+    applied: bool | None = None,
     notes: str = "",
 ):
     init_tracker()
@@ -168,6 +205,8 @@ def log_external_link(
         job_title,
         job_url,
         external_url,
+        str(handled).lower() if handled is not None else "",
+        str(applied).lower() if applied is not None else "",
         notes,
     ]
     with open(EXTERNAL_LINKS_FILE, "a", newline="", encoding="utf-8") as f:
