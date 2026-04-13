@@ -19,6 +19,7 @@ Edit `config.py` and set:
 - resume path (`data/my_resume.pdf` by default)
 - `headless=False` for first-time debugging
 - `application_profile` values like `cgpa`, `college`, `tenth_percentage`, `twelfth_percentage`, `source`, and `location` for form auto-fill
+- `requirement_keywords` and `min_keyword_matches` for requirement-based apply filtering
 
 Place your resume at:
 - `resume_bot/data/my_resume.pdf`
@@ -52,6 +53,7 @@ crontab -l
 ## Output Files
 
 - `data/applications.csv`: application tracking
+- `data/external_job_links.csv`: external company apply links captured from job pages
 - `data/bot_log.txt`: run logs
 - `data/failures/*.txt`: failure details (step + error)
 - `data/failures/*.png`: failure screenshots
@@ -61,5 +63,7 @@ crontab -l
 - Use valid credentials in `config.py`
 - Apna login requires OTP input
 - Application forms with common questions (CGPA/college/10th-12th/source/location/etc.) are auto-filled from `application_profile`
+- Jobs are skipped if requirement keywords do not match (based on `requirement_keywords`)
+- External company application links are saved to `data/external_job_links.csv`
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
 ok

@@ -7,7 +7,8 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
 from utils.form_autofill import autofill_application_questions, build_application_profile
-from utils.tracker import is_duplicate_application, log_application
+from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
+from utils.tracker import is_duplicate_application, log_application, log_external_link
 
 
 class NaukriBot:
@@ -23,6 +24,9 @@ class NaukriBot:
         self.platform_name = "Naukri"
         self.dry_run = bool(config.get("dry_run", False))
         self.application_profile = build_application_profile(config)
+        self.requirement_keywords = list(config.get("requirement_keywords", []))
+        self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
+        self.platform_domains = ["naukri.com"]
 
     async def login(self, page: Page):
         print("Naukri login started")
@@ -108,6 +112,34 @@ class NaukriBot:
                     await job_page.close()
                 return False
 
+            job_text = await extract_job_text(job_page)
+            is_match, matched_keywords = keyword_match(job_text, self.requirement_keywords, self.min_keyword_matches)
+            if not is_match:
+                log_application(
+                    self.platform_name,
+                    company,
+                    title,
+                    location,
+                    status="Skipped - Keyword Mismatch",
+                    job_url=job_url,
+                    notes="No required keyword found",
+                )
+                print(f"Skipped keyword mismatch: {company} - {title}")
+                if job_page != page:
+                    await job_page.close()
+                return False
+
+            external_links = await find_external_links(job_page, self.platform_domains)
+            for external_url in external_links[:3]:
+                log_external_link(
+                    self.platform_name,
+                    company,
+                    title,
+                    job_url,
+                    external_url,
+                    notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
+                )
+
             if self.dry_run:
                 log_application(
                     self.platform_name,
@@ -116,6 +148,7 @@ class NaukriBot:
                     location,
                     status="Dry Run",
                     job_url=job_url,
+                    notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                 )
                 print(f"Dry run logged: {company} - {title}")
                 if job_page != page:
@@ -171,6 +204,7 @@ class NaukriBot:
                 location,
                 status=status,
                 job_url=job_url,
+                notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
             )
             print(f"{self.platform_name} {status.lower()}: {company} - {title}")
 

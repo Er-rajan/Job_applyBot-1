@@ -6,7 +6,8 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
 from utils.form_autofill import autofill_application_questions, build_application_profile
-from utils.tracker import is_duplicate_application, log_application
+from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
+from utils.tracker import is_duplicate_application, log_application, log_external_link
 
 
 class InternshalaBot:
@@ -21,6 +22,9 @@ class InternshalaBot:
         self.platform_name = "Internshala"
         self.dry_run = bool(config.get("dry_run", False))
         self.application_profile = build_application_profile(config)
+        self.requirement_keywords = list(config.get("requirement_keywords", []))
+        self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
+        self.platform_domains = ["internshala.com"]
 
     async def login(self, page: Page):
         print("Internshala login started")
@@ -105,6 +109,32 @@ class InternshalaBot:
                 print(f"Skipped duplicate: {company} - {title}")
                 return False
 
+            job_text = await extract_job_text(page)
+            is_match, matched_keywords = keyword_match(job_text, self.requirement_keywords, self.min_keyword_matches)
+            if not is_match:
+                log_application(
+                    self.platform_name,
+                    company,
+                    title,
+                    "",
+                    status="Skipped - Keyword Mismatch",
+                    job_url=listing_url,
+                    notes=listing_type,
+                )
+                print(f"Skipped keyword mismatch: {company} - {title}")
+                return False
+
+            external_links = await find_external_links(page, self.platform_domains)
+            for external_url in external_links[:3]:
+                log_external_link(
+                    self.platform_name,
+                    company,
+                    title,
+                    listing_url,
+                    external_url,
+                    notes=listing_type + " | Matched: " + ", ".join(matched_keywords[:8]),
+                )
+
             if self.dry_run:
                 log_application(
                     self.platform_name,
@@ -113,7 +143,7 @@ class InternshalaBot:
                     "",
                     status="Dry Run",
                     job_url=listing_url,
-                    notes=listing_type,
+                    notes=listing_type + " | Matched: " + ", ".join(matched_keywords[:8]),
                 )
                 print(f"Dry run logged: {company} - {title}")
                 return True
@@ -167,7 +197,7 @@ class InternshalaBot:
                 "",
                 status="Applied",
                 job_url=listing_url,
-                notes=listing_type,
+                notes=listing_type + " | Matched: " + ", ".join(matched_keywords[:8]),
             )
             print(f"Internshala applied: {company} - {title}")
             return True

@@ -6,7 +6,8 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, safe_click, safe_fill, safe_goto
 from utils.form_autofill import autofill_application_questions, build_application_profile
-from utils.tracker import is_duplicate_application, log_application
+from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
+from utils.tracker import is_duplicate_application, log_application, log_external_link
 
 
 class IndeedBot:
@@ -22,6 +23,9 @@ class IndeedBot:
         self.platform_name = "Indeed"
         self.dry_run = bool(config.get("dry_run", False))
         self.application_profile = build_application_profile(config)
+        self.requirement_keywords = list(config.get("requirement_keywords", []))
+        self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
+        self.platform_domains = ["indeed.com"]
 
     async def login(self, page: Page):
         print("Indeed login started")
@@ -86,6 +90,34 @@ class IndeedBot:
                     print(f"Skipped duplicate: {company} - {title}")
                     continue
 
+                job_text = await extract_job_text(page)
+                is_match, matched_keywords = keyword_match(
+                    job_text, self.requirement_keywords, self.min_keyword_matches
+                )
+                if not is_match:
+                    log_application(
+                        self.platform_name,
+                        company,
+                        title,
+                        location_text,
+                        status="Skipped - Keyword Mismatch",
+                        job_url=job_url,
+                        notes="No required keyword found",
+                    )
+                    print(f"Skipped keyword mismatch: {company} - {title}")
+                    continue
+
+                external_links = await find_external_links(page, self.platform_domains)
+                for external_url in external_links[:3]:
+                    log_external_link(
+                        self.platform_name,
+                        company,
+                        title,
+                        job_url,
+                        external_url,
+                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
+                    )
+
                 if self.dry_run:
                     log_application(
                         self.platform_name,
@@ -94,6 +126,7 @@ class IndeedBot:
                         location_text,
                         status="Dry Run",
                         job_url=job_url,
+                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                     )
                     print(f"Dry run logged: {company} - {title}")
                     continue
@@ -147,6 +180,7 @@ class IndeedBot:
                     location_text,
                     status="Applied",
                     job_url=job_url,
+                    notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                 )
                 print(f"Indeed applied: {company} - {title}")
                 await asyncio.sleep(self.delay)
@@ -180,6 +214,9 @@ class ApnaBot:
         self.platform_name = "Apna"
         self.dry_run = bool(config.get("dry_run", False))
         self.application_profile = build_application_profile(config)
+        self.requirement_keywords = list(config.get("requirement_keywords", []))
+        self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
+        self.platform_domains = ["apna.co"]
 
     async def login(self, page: Page):
         print("Apna login started")
@@ -244,6 +281,37 @@ class ApnaBot:
                         await asyncio.sleep(1)
                     continue
 
+                job_text = await extract_job_text(page)
+                is_match, matched_keywords = keyword_match(
+                    job_text, self.requirement_keywords, self.min_keyword_matches
+                )
+                if not is_match:
+                    log_application(
+                        self.platform_name,
+                        company,
+                        title,
+                        "",
+                        status="Skipped - Keyword Mismatch",
+                        job_url=job_url,
+                        notes="No required keyword found",
+                    )
+                    print(f"Skipped keyword mismatch: {company} - {title}")
+                    if "apna.co/jobs" not in page.url:
+                        await page.go_back()
+                        await asyncio.sleep(1)
+                    continue
+
+                external_links = await find_external_links(page, self.platform_domains)
+                for external_url in external_links[:3]:
+                    log_external_link(
+                        self.platform_name,
+                        company,
+                        title,
+                        job_url,
+                        external_url,
+                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
+                    )
+
                 if self.dry_run:
                     log_application(
                         self.platform_name,
@@ -252,6 +320,7 @@ class ApnaBot:
                         "",
                         status="Dry Run",
                         job_url=job_url,
+                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                     )
                     print(f"Dry run logged: {company} - {title}")
                     if "apna.co/jobs" not in page.url:
@@ -291,6 +360,7 @@ class ApnaBot:
                         "",
                         status="Applied",
                         job_url=job_url,
+                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
                     )
                     print(f"Apna applied: {company} - {title}")
 
