@@ -15,14 +15,16 @@ LOG_FILE="$BOT_DIR/data/bot_log.txt"
 
 mkdir -p "$BOT_DIR/data"
 
-CRON_JOB="0 18 * * * cd $BOT_DIR && $PYTHON_PATH $MAIN_FILE --force >> $LOG_FILE 2>&1"
+CRON_JOB="0 8-22/2 * * * cd $BOT_DIR && $PYTHON_PATH $MAIN_FILE --force >> $LOG_FILE 2>&1"
 
-(crontab -l 2>/dev/null | grep -q "$MAIN_FILE") && {
-    echo "Cron job already exists. Use crontab -e to update if needed."
-} || {
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    echo "Cron job added for 18:00 daily."
-}
+# Replace older bot schedule entries and keep all other cron jobs.
+EXISTING_CRON="$(crontab -l 2>/dev/null || true)"
+UPDATED_CRON="$(printf '%s\n' "$EXISTING_CRON" | grep -v "$MAIN_FILE" || true)"
+{
+    printf "%s\n" "$UPDATED_CRON"
+    echo "$CRON_JOB"
+} | sed '/^$/N;/^\n$/D' | crontab -
+echo "Cron job set: every 2 hours from 08:00 to 22:00."
 
 echo
 echo "Current cron jobs:"

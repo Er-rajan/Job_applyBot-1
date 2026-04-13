@@ -67,3 +67,5 @@ crontab -l
 - External company application links are saved to `data/external_job_links.csv`
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)
 ok
+
+
