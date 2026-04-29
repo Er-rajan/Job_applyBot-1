@@ -374,69 +374,63 @@ class ApnaBot:
                     title = (await title_el.inner_text()).strip() if title_el else "Unknown"
                     company = (await company_el.inner_text()).strip() if company_el else "Unknown"
 
-                await job.click()
-                await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
-                job_url = page.url
+                    await job.click()
+                    await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
+                    job_url = page.url
 
-                if not self.force_apply_mode and is_duplicate_application(self.platform_name, company, title, job_url):
-                    print(f"Skipped duplicate: {company} - {title}")
-                    if "apna.co/jobs" not in page.url:
-                        await page.go_back()
-                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
-                    continue
+                    if (not self.force_apply_mode) and is_duplicate_application(self.platform_name, company, title, job_url):
+                        if "apna.co/jobs" not in page.url:
+                            await page.go_back()
+                            await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+                        continue
 
-                job_text = await extract_job_text(page)
-                is_match, matched_keywords = keyword_match(
-                    job_text, self.requirement_keywords, self.min_keyword_matches
-                )
-                if not self.force_apply_mode and not is_match:
-                    log_application(
-                        self.platform_name,
-                        company,
-                        title,
-                        "",
-                        status="Skipped - Keyword Mismatch",
-                        job_url=job_url,
-                        notes="No required keyword found",
-                    )
-                    print(f"Skipped keyword mismatch: {company} - {title}")
-                    if "apna.co/jobs" not in page.url:
-                        await page.go_back()
-                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
-                    continue
+                    job_text = await extract_job_text(page)
+                    is_match, matched_keywords = keyword_match(job_text, self.requirement_keywords, self.min_keyword_matches)
+                    if (not self.force_apply_mode) and (not is_match):
+                        log_application(
+                            self.platform_name,
+                            company,
+                            title,
+                            "",
+                            status="Skipped - Keyword Mismatch",
+                            job_url=job_url,
+                            notes="No required keyword found",
+                        )
+                        if "apna.co/jobs" not in page.url:
+                            await page.go_back()
+                            await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+                        continue
 
-                external_links = await find_external_links(page, self.platform_domains)
-                for external_url in external_links[: self.max_external_links]:
-                    handled, applied, message = await handle_external_link(page, external_url, dry_run=self.dry_run)
-                    log_external_link(
-                        self.platform_name,
-                        company,
-                        title,
-                        job_url,
-                        external_url,
-                        handled=handled,
-                        applied=applied,
-                        notes=f"{message} | Matched keywords: " + ", ".join(matched_keywords[:8]),
-                    )
+                    if self.dry_run:
+                        log_application(
+                            self.platform_name,
+                            company,
+                            title,
+                            "",
+                            status="Dry Run",
+                            job_url=job_url,
+                            notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
+                        )
+                        if "apna.co/jobs" not in page.url:
+                            await page.go_back()
+                            await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+                        continue
 
-                if self.dry_run:
-                    log_application(
-                        self.platform_name,
-                        company,
-                        title,
-                        "",
-                        status="Dry Run",
-                        job_url=job_url,
-                        notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
-                    )
-                    print(f"Dry run logged: {company} - {title}")
-                    if "apna.co/jobs" not in page.url:
-                        await page.go_back()
-                        await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
-                    continue
+                    apply_btn = await first_visible(page, ["button:has-text('Apply')", "button:has-text('Apply Now')"])
+                    if not apply_btn:
+                        log_application(
+                            self.platform_name,
+                            company,
+                            title,
+                            "",
+                            status="Failed - Apply Button Missing",
+                            job_url=job_url,
+                            notes=f"Force mode={self.force_apply_mode}",
+                        )
+                        if "apna.co/jobs" not in page.url:
+                            await page.go_back()
+                        continue
 
-                apply_btn = await first_visible(page, ["button:has-text('Apply')", "button:has-text('Apply Now')"])
-                if apply_btn:
                     await apply_btn.click()
                     await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
@@ -468,17 +462,6 @@ class ApnaBot:
                         status="Applied",
                         job_url=job_url,
                         notes="Matched keywords: " + ", ".join(matched_keywords[:8]),
-                    )
-                    print(f"Apna applied: {company} - {title}")
-                else:
-                    log_application(
-                        self.platform_name,
-                        company,
-                        title,
-                        "",
-                        status="Failed - Apply Button Missing",
-                        job_url=job_url,
-                        notes=f"Force mode={self.force_apply_mode}",
                     )
 
                     if "apna.co/jobs" not in page.url:
