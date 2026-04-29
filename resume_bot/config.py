@@ -78,6 +78,12 @@ CONFIG = {
         "linkedin_url": "https://www.linkedin.com/in/mr-rajan-86a039242",
         "email": "rraajjaann2001@gmail.com",
     },
+    "question_bank_path": "data/application_question_bank.json",
+    "question_bank": {
+        "linkedin profile": "https://www.linkedin.com/in/mr-rajan-86a039242",
+        "github profile": "https://github.com/Er-rajan",
+        "describe a recent technical project youve worked on": "Recently, I developed and deployed a real-time AI perception system specifically optimized for edge computing hardware, using the RDK X5 platform. The goal was to create a low-latency object detection and classification pipeline that could operate autonomously without relying on cloud-based APIs.",
+    },
 
     # Resume file path (relative to project root or absolute)
     "resume_path": "data/my_resume.pdf",

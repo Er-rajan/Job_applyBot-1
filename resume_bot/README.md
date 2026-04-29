@@ -62,6 +62,7 @@ crontab -l
 - `data/applications.csv`: application tracking
 - `data/external_job_links.csv`: external company apply links + handling status (`Handled`, `Applied`)
 - `data/bot_log.txt`: run logs
+- `data/application_question_bank.json`: reusable question-answer bank across portals
 - `data/failures/*.txt`: failure details (step + error)
 - `data/failures/*.png`: failure screenshots
 
@@ -70,6 +71,8 @@ crontab -l
 - Use valid credentials in `config.py`
 - Apna login requires OTP input
 - Application forms with common questions (CGPA/college/10th-12th/source/location/etc.) are auto-filled from `application_profile`
+- Unknown form questions are saved with `TODO_ANSWER` in `data/application_question_bank.json` so you can fill once and reuse forever
+- You can pre-add common portal questions in `data/application_question_bank.json` and manually set answers (`TODO_ANSWER` -> your final answer)
 - Jobs are skipped if requirement keywords do not match (based on `requirement_keywords`)
 - External company application links are handled in best-effort mode and logged with `Handled`/`Applied` true-false status
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)

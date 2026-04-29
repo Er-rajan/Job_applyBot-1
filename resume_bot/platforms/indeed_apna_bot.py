@@ -6,7 +6,13 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
 from utils.external_apply import handle_external_link
-from utils.form_autofill import autofill_application_questions, build_application_profile
+from utils.form_autofill import (
+    autofill_application_questions,
+    autofill_with_question_bank,
+    build_application_profile,
+    build_question_bank,
+    save_question_bank,
+)
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
 
@@ -30,6 +36,8 @@ class IndeedBot:
         self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
         self.platform_domains = ["indeed.com"]
         self.max_external_links = int(config.get("max_external_links_per_job", 2))
+        self.question_bank_path = str(config.get("question_bank_path", "data/application_question_bank.json"))
+        self.question_bank = build_question_bank(config, self.question_bank_path)
 
     async def login(self, page: Page):
         print("Indeed login started")
@@ -153,10 +161,27 @@ class IndeedBot:
                 await apply_btn.click()
                 await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
-                for _ in range(5):
-                    filled_count = await autofill_application_questions(page, self.application_profile)
+                for step_idx in range(10):
+                    await page.mouse.wheel(0, 700)
+                    await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
+                    filled_count, learned_count, unknown_questions = await autofill_with_question_bank(
+                        page,
+                        self.application_profile,
+                        self.question_bank,
+                    )
                     if filled_count:
-                        print(f"Indeed autofilled {filled_count} fields")
+                        print(f"Indeed autofilled {filled_count} fields (step {step_idx + 1})")
+                    if learned_count:
+                        print(f"Indeed learned {learned_count} question mappings")
+                    if unknown_questions:
+                        for question in unknown_questions[:5]:
+                            self.question_bank.setdefault(question, "TODO_ANSWER")
+                        print(
+                            "Indeed found unknown questions: "
+                            + ", ".join(unknown_questions[:3])
+                            + (" ..." if len(unknown_questions) > 3 else "")
+                        )
+                    save_question_bank(self.question_bank_path, self.question_bank)
 
                     next_btn = await first_visible(
                         page,
@@ -169,15 +194,32 @@ class IndeedBot:
                     if not next_btn:
                         break
                     await next_btn.click()
-                    await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+                    await human_pause(2, self.delay_jitter_min, self.delay_jitter_max)
 
-                filled_count = await autofill_application_questions(page, self.application_profile)
+                await page.mouse.wheel(0, 1400)
+                await human_pause(5, self.delay_jitter_min, self.delay_jitter_max)
+
+                filled_count, learned_count, unknown_questions = await autofill_with_question_bank(
+                    page,
+                    self.application_profile,
+                    self.question_bank,
+                )
                 if filled_count:
-                    print(f"Indeed autofilled {filled_count} fields")
+                    print(f"Indeed final autofill count: {filled_count}")
+                if learned_count:
+                    print(f"Indeed final learned mappings: {learned_count}")
+                if unknown_questions:
+                    for question in unknown_questions[:5]:
+                        self.question_bank.setdefault(question, "TODO_ANSWER")
+                save_question_bank(self.question_bank_path, self.question_bank)
 
                 submit_btn = await first_visible(
                     page,
-                    ["button[aria-label='Submit your application']", "button:has-text('Submit')"],
+                    [
+                        "button[aria-label='Submit your application']",
+                        "button:has-text('Submit your application')",
+                        "button:has-text('Submit')",
+                    ],
                 )
                 if not submit_btn:
                     continue

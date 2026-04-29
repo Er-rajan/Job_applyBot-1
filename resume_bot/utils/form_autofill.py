@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import ElementHandle, Page
@@ -47,6 +49,10 @@ _SKIP_CONTEXT_KEYWORDS = (
 
 def _norm(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+
+def _normalize_question_key(value: str) -> str:
+    return _norm(re.sub(r"[\W_]+", " ", value or ""))
 
 
 def build_application_profile(config: dict[str, Any]) -> dict[str, str]:
@@ -98,6 +104,11 @@ async def _field_context(page: Page, field: ElementHandle) -> str:
         pass
 
     return _norm(" ".join(parts))
+
+
+async def field_context_for_learning(page: Page, field: ElementHandle) -> str:
+    """Expose normalized field context so platforms can persist unknown questions."""
+    return await _field_context(page, field)
 
 
 def _pick_value(context: str, profile: dict[str, str]) -> str | None:
@@ -167,3 +178,103 @@ async def autofill_application_questions(page: Page, profile: dict[str, str]) ->
             filled += 1
 
     return filled
+
+
+def load_question_bank(path: str | Path) -> dict[str, str]:
+    file_path = Path(path)
+    if not file_path.exists():
+        return {}
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for key, val in data.items():
+        if not isinstance(key, str) or not isinstance(val, str):
+            continue
+        norm_key = _normalize_question_key(key)
+        if norm_key and val.strip():
+            normalized[norm_key] = val.strip()
+    return normalized
+
+
+def save_question_bank(path: str | Path, question_bank: dict[str, str]) -> None:
+    file_path = Path(path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(json.dumps(question_bank, indent=2, ensure_ascii=True), encoding="utf-8")
+
+
+def build_question_bank(config: dict[str, Any], path: str | Path) -> dict[str, str]:
+    question_bank = load_question_bank(path)
+    for key, val in dict(config.get("question_bank", {})).items():
+        if not isinstance(key, str) or not isinstance(val, str):
+            continue
+        norm_key = _normalize_question_key(key)
+        if norm_key and val.strip():
+            question_bank[norm_key] = val.strip()
+    return question_bank
+
+
+async def autofill_with_question_bank(
+    page: Page,
+    profile: dict[str, str],
+    question_bank: dict[str, str],
+) -> tuple[int, int, list[str]]:
+    """
+    Fill form fields via profile mapping and learned question bank.
+    Returns: (filled_count, learned_count, unknown_contexts)
+    """
+    filled = 0
+    learned = 0
+    unknown_contexts: list[str] = []
+
+    fields = await page.query_selector_all("input, textarea, select")
+    for field in fields:
+        if await field.is_disabled():
+            continue
+
+        tag_name = _norm(await field.evaluate("el => el.tagName"))
+        input_type = _norm(await field.get_attribute("type") or "")
+        if input_type in {"hidden", "file", "checkbox", "radio"}:
+            continue
+
+        current_val = _norm(await field.input_value() if tag_name != "select" else "")
+        if current_val:
+            continue
+
+        context = await _field_context(page, field)
+        if not context:
+            continue
+
+        value = _pick_value(context, profile)
+        if not value:
+            bank_value = question_bank.get(_normalize_question_key(context))
+            if bank_value:
+                value = bank_value
+
+        if value:
+            if tag_name == "select":
+                ok = await _fill_select(field, value)
+            else:
+                try:
+                    await field.fill(value)
+                    ok = True
+                except Exception:  # noqa: BLE001
+                    ok = False
+            if ok:
+                filled += 1
+                question_key = _normalize_question_key(context)
+                if question_key and question_key not in question_bank:
+                    question_bank[question_key] = value
+                    learned += 1
+            continue
+
+        if any(skip_word in context for skip_word in _SKIP_CONTEXT_KEYWORDS):
+            continue
+        question_key = _normalize_question_key(context)
+        if question_key and question_key not in question_bank:
+            unknown_contexts.append(question_key)
+
+    return filled, learned, unknown_contexts

@@ -7,7 +7,13 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
 from utils.external_apply import handle_external_link
-from utils.form_autofill import autofill_application_questions, build_application_profile
+from utils.form_autofill import (
+    autofill_application_questions,
+    autofill_with_question_bank,
+    build_application_profile,
+    build_question_bank,
+    save_question_bank,
+)
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
 
@@ -31,6 +37,111 @@ class NaukriBot:
         self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
         self.platform_domains = ["naukri.com"]
         self.max_external_links = int(config.get("max_external_links_per_job", 2))
+        self.question_bank_path = str(config.get("question_bank_path", "data/application_question_bank.json"))
+        self.question_bank = build_question_bank(config, self.question_bank_path)
+
+    async def _dismiss_naukri_popups(self, page: Page) -> bool:
+        """Close blocking ad/popups if visible."""
+        dismissed = False
+        close_selectors = [
+            "button[aria-label='Close']",
+            "button:has-text('Close')",
+            ".crossIcon",
+            ".chatbot_cross",
+            ".modal-close",
+            ".naukicon-cross",
+            "span:has-text('×')",
+        ]
+        for _ in range(3):
+            close_btn = await first_visible(page, close_selectors)
+            if close_btn:
+                try:
+                    await close_btn.click()
+                    dismissed = True
+                    await human_pause(0.5, self.delay_jitter_min, self.delay_jitter_max)
+                except Exception:  # noqa: BLE001
+                    pass
+        return dismissed
+
+    async def _fill_naukri_question_chat(self, page: Page) -> int:
+        """Answer recruiter chat-style questions and click Save."""
+        answered = 0
+        for _ in range(8):
+            # Try regular form autofill first.
+            filled_count, learned_count, unknown_questions = await autofill_with_question_bank(
+                page, self.application_profile, self.question_bank
+            )
+            answered += filled_count
+            if learned_count:
+                print(f"Naukri learned {learned_count} question mappings")
+            if unknown_questions:
+                for question in unknown_questions[:10]:
+                    self.question_bank.setdefault(question, "TODO_ANSWER")
+                save_question_bank(self.question_bank_path, self.question_bank)
+
+            # Handle chat input where one question appears at a time.
+            question_el = await first_visible(
+                page,
+                [
+                    ".chatbot_MessageContainer .message",
+                    ".chatbot .bot-message",
+                    ".question-text",
+                    "div:has-text('What is your')",
+                    "div:has-text('How many years')",
+                    "div:has-text('Are you')",
+                ],
+            )
+            chat_input = await first_visible(
+                page,
+                [
+                    "input[placeholder*='Type message']",
+                    "textarea[placeholder*='Type message']",
+                    "input[placeholder*='message']",
+                    "textarea[placeholder*='message']",
+                ],
+            )
+
+            if question_el and chat_input:
+                question_txt = (await question_el.inner_text()).strip().lower()
+                question_key = " ".join(question_txt.split())
+                answer = self.question_bank.get(question_key)
+                if not answer:
+                    for key, val in self.question_bank.items():
+                        if key in question_key or question_key in key:
+                            answer = val
+                            break
+                if not answer:
+                    self.question_bank.setdefault(question_key, "TODO_ANSWER")
+                    save_question_bank(self.question_bank_path, self.question_bank)
+                    answer = "TODO_ANSWER"
+
+                try:
+                    await chat_input.fill(answer)
+                    await page.keyboard.press("Enter")
+                    answered += 1
+                    await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
+                except Exception:  # noqa: BLE001
+                    pass
+
+            save_btn = await first_visible(
+                page,
+                [
+                    "button:has-text('Save')",
+                    "button:has-text('Submit')",
+                    "button:has-text('Continue')",
+                ],
+            )
+            if save_btn:
+                try:
+                    await save_btn.click()
+                    await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                break
+
+        save_question_bank(self.question_bank_path, self.question_bank)
+        return answered
 
     async def login(self, page: Page):
         print("Naukri login started")
@@ -178,8 +289,10 @@ class NaukriBot:
                     await job_page.close()
                 return False
 
+            await self._dismiss_naukri_popups(job_page)
             await apply_btn.click()
             await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
+            await self._dismiss_naukri_popups(job_page)
 
             for _ in range(4):
                 filled_count = await autofill_application_questions(job_page, self.application_profile)
@@ -198,6 +311,12 @@ class NaukriBot:
                     break
                 await next_btn.click()
                 await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+
+            await job_page.mouse.wheel(0, 1200)
+            await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
+            qa_answered = await self._fill_naukri_question_chat(job_page)
+            if qa_answered:
+                print(f"Naukri answered {qa_answered} recruiter questions")
 
             already_applied = await job_page.query_selector("text=already applied")
             if already_applied:

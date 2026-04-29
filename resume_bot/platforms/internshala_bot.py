@@ -6,7 +6,13 @@ from playwright.async_api import Page
 
 from utils.browser_utils import capture_failure, first_visible, human_pause, safe_click, safe_fill, safe_goto
 from utils.external_apply import handle_external_link
-from utils.form_autofill import autofill_application_questions, build_application_profile
+from utils.form_autofill import (
+    autofill_application_questions,
+    autofill_with_question_bank,
+    build_application_profile,
+    build_question_bank,
+    save_question_bank,
+)
 from utils.job_intelligence import extract_job_text, find_external_links, keyword_match
 from utils.tracker import is_duplicate_application, log_application, log_external_link
 
@@ -29,6 +35,8 @@ class InternshalaBot:
         self.min_keyword_matches = int(config.get("min_keyword_matches", 1))
         self.platform_domains = ["internshala.com"]
         self.max_external_links = int(config.get("max_external_links_per_job", 2))
+        self.question_bank_path = str(config.get("question_bank_path", "data/application_question_bank.json"))
+        self.question_bank = build_question_bank(config, self.question_bank_path)
 
     async def login(self, page: Page):
         print("Internshala login started")
@@ -180,18 +188,54 @@ class InternshalaBot:
             await apply_btn.click()
             await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
 
-            filled_count = await autofill_application_questions(page, self.application_profile)
-            if filled_count:
-                print(f"Internshala autofilled {filled_count} fields")
+            # Scroll down to application form section ("Apply now"), as required for Internshala flows.
+            for _ in range(4):
+                await page.mouse.wheel(0, 900)
+                await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
+
+            availability_radio = await first_visible(
+                page,
+                [
+                    "label:has-text('Yes, I am available to join immediately')",
+                    "label:has-text('Yes')",
+                    "input[type='radio'][value*='immediate']",
+                ],
+            )
+            if availability_radio:
+                try:
+                    await availability_radio.click()
+                except Exception:  # noqa: BLE001
+                    pass
+
+            # Multi-pass fill because fields may appear progressively while scrolling.
+            for _ in range(3):
+                filled_count, learned_count, unknown_questions = await autofill_with_question_bank(
+                    page, self.application_profile, self.question_bank
+                )
+                if filled_count:
+                    print(f"Internshala autofilled {filled_count} fields")
+                if learned_count:
+                    print(f"Internshala learned {learned_count} question mappings")
+                if unknown_questions:
+                    for question in unknown_questions[:8]:
+                        self.question_bank.setdefault(question, "TODO_ANSWER")
+                save_question_bank(self.question_bank_path, self.question_bank)
+                await page.mouse.wheel(0, 700)
+                await human_pause(1, self.delay_jitter_min, self.delay_jitter_max)
 
             cover_letter = await first_visible(page, ["textarea.cover_letter_ta", "textarea[name='cover_letter']"])
             if cover_letter:
-                default_cl = (
+                normalized_cover_letter_key = "why should you be hired for this internship"
+                default_cl = self.question_bank.get(normalized_cover_letter_key) or (
                     f"I am interested in this {listing_type} role at {company}. "
                     "My skills are aligned with the requirements."
                 )
                 await cover_letter.fill(default_cl)
                 await human_pause(self.delay / 2, self.delay_jitter_min, self.delay_jitter_max)
+
+            # Final scroll near submit area before clicking.
+            await page.mouse.wheel(0, 1400)
+            await human_pause(2, self.delay_jitter_min, self.delay_jitter_max)
 
             submit_ok = await safe_click(page, ["button#submit", ".submit-btn", "button:has-text('Submit')"])
             if not submit_ok:
