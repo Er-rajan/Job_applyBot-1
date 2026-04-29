@@ -40,6 +40,9 @@ python3 main.py --platform naukri --force
 # Dry run (logs matches, does not apply)
 python3 main.py --platform naukri --dry-run --force
 
+# Validation run (opens application flow, validates fields, no final submit)
+python3 main.py --platform naukri --validate-run --force
+
 # Run all enabled platforms
 python3 main.py --force
 
@@ -73,6 +76,9 @@ crontab -l
 - Application forms with common questions (CGPA/college/10th-12th/source/location/etc.) are auto-filled from `application_profile`
 - Unknown form questions are saved with `TODO_ANSWER` in `data/application_question_bank.json` so you can fill once and reuse forever
 - You can pre-add common portal questions in `data/application_question_bank.json` and manually set answers (`TODO_ANSWER` -> your final answer)
+- Accuracy guardrails now include popup handling, required-field checks, question fuzzy-matching, retryable steps, and post-submit confirmation checks
+- Each apply attempt now tracks stage flow in tracker notes (`opened -> apply-clicked -> questions-filled -> applied/submitted`)
+- Configure accuracy controls in `config.py` via `accuracy` and `platform_selectors`
 - Jobs are skipped if requirement keywords do not match (based on `requirement_keywords`)
 - External company application links are handled in best-effort mode and logged with `Handled`/`Applied` true-false status
 - Duplicate jobs are skipped using `applications.csv` (URL or company+title+platform)

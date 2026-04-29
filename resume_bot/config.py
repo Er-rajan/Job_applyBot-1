@@ -58,6 +58,7 @@ CONFIG = {
     ],
     "min_keyword_matches": 1,
     "max_external_links_per_job": 2,
+    "max_jobs_per_search": 12,
     "application_profile": {
         "current_company": "Oplus Cowork",
         "current_job_title": "Robotics and AI Intern",
@@ -83,6 +84,37 @@ CONFIG = {
         "linkedin profile": "https://www.linkedin.com/in/mr-rajan-86a039242",
         "github profile": "https://github.com/Er-rajan",
         "describe a recent technical project youve worked on": "Recently, I developed and deployed a real-time AI perception system specifically optimized for edge computing hardware, using the RDK X5 platform. The goal was to create a low-latency object detection and classification pipeline that could operate autonomously without relying on cloud-based APIs.",
+    },
+    "accuracy": {
+        "max_step_retries": 2,
+        "block_on_todo_answer": False,
+        "require_submit_confirmation": True,
+    },
+    "force_apply_mode": False,
+    "platform_selectors": {
+        "common_popup_close": [
+            "button[aria-label='Close']",
+            "button:has-text('Close')",
+            ".modal-close",
+            ".naukicon-cross",
+            ".crossIcon",
+            "span:has-text('×')",
+        ],
+        "indeed_success": [
+            "text=Application submitted",
+            "text=You applied",
+            "text=Thanks for applying",
+        ],
+        "internshala_success": [
+            "text=Application submitted",
+            "text=Successfully applied",
+            "text=You have already applied",
+        ],
+        "naukri_success": [
+            "text=Successfully applied",
+            "text=already applied",
+            "text=Application sent",
+        ],
     },
 
     # Resume file path (relative to project root or absolute)
@@ -126,5 +158,6 @@ CONFIG = {
     "delay_jitter_min": 0.8,
     "delay_jitter_max": 2.2,
     "otp_wait_seconds": 120,
+    "login_retry_attempts": 4,
     "headless": False,
 }

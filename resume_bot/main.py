@@ -70,11 +70,12 @@ def resolve_browser_settings(config: dict) -> tuple[str, dict]:
     return engine, launch_options
 
 
-async def run_bots(platforms: list[str] | None = None, dry_run: bool = False):
+async def run_bots(platforms: list[str] | None = None, dry_run: bool = False, validate_run: bool = False):
     init_tracker()
     log("RESUME BOT START")
     log(f"Start time: {datetime.now().strftime('%A, %d %B %Y - %I:%M %p')}")
     log(f"Dry run mode: {'ON' if dry_run else 'OFF'}")
+    log(f"Validate mode: {'ON' if validate_run else 'OFF'}")
 
     if platforms is None:
         platforms = ["naukri", "indeed", "internshala", "apna"]
@@ -103,6 +104,7 @@ async def run_bots(platforms: list[str] | None = None, dry_run: bool = False):
         )
 
         total_applied = 0
+        portal_applied: dict[str, int] = {}
         run_order = [
             ("naukri", NaukriBot),
             ("indeed", IndeedBot),
@@ -116,15 +118,22 @@ async def run_bots(platforms: list[str] | None = None, dry_run: bool = False):
             try:
                 runtime_config = dict(CONFIG)
                 runtime_config["dry_run"] = dry_run
+                runtime_config["validate_mode"] = validate_run
                 bot = bot_cls(runtime_config)
                 await bot.run(page)
                 total_applied += bot.applied_count
+                portal_applied[name] = bot.applied_count
+                log(f"{name.title()} successful applies: {bot.applied_count}")
             except Exception as exc:
                 log(f"{name.title()} bot crashed: {exc}")
                 await capture_failure(page, name.title(), "bot_run", exc)
+                portal_applied[name] = 0
 
         await browser.close()
 
+    for portal_name in ["naukri", "indeed", "internshala", "apna"]:
+        if portal_name in portal_applied:
+            log(f"SUMMARY {portal_name.title()}: {portal_applied[portal_name]} applied")
     log(f"RUN COMPLETE. Total applications sent: {total_applied}")
     get_stats()
 
@@ -136,6 +145,11 @@ def main():
     parser.add_argument("--stats", action="store_true")
     parser.add_argument("--force", action="store_true", help="Run even if already executed today")
     parser.add_argument("--dry-run", action="store_true", help="Collect and log jobs without applying")
+    parser.add_argument(
+        "--validate-run",
+        action="store_true",
+        help="Open application flows, validate fields and selectors, but avoid final submit",
+    )
     args = parser.parse_args()
 
     if args.stats:
@@ -147,9 +161,9 @@ def main():
         sys.exit(0)
 
     if args.platform:
-        asyncio.run(run_bots([args.platform], dry_run=args.dry_run))
+        asyncio.run(run_bots([args.platform], dry_run=args.dry_run, validate_run=args.validate_run))
     else:
-        asyncio.run(run_bots(dry_run=args.dry_run))
+        asyncio.run(run_bots(dry_run=args.dry_run, validate_run=args.validate_run))
 
 
 if __name__ == "__main__":

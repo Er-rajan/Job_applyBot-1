@@ -1,0 +1,5 @@
+time: 2026-04-29T14:06:57.448922
+platform: Indeed
+step: login_attempt_1
+error: TargetClosedError: Page.goto: Target page, context or browser has been closed
+url: https://www.naukri.com/data-analyst-jobs-in-bangalore

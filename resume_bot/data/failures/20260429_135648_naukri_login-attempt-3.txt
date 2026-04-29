@@ -1,0 +1,5 @@
+time: 2026-04-29T13:56:48.996907
+platform: Naukri
+step: login_attempt_3
+error: TargetClosedError: Page.goto: Target page, context or browser has been closed
+url: https://www.naukri.com/nlogin/login

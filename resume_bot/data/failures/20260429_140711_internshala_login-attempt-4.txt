@@ -1,0 +1,5 @@
+time: 2026-04-29T14:07:11.521636
+platform: Internshala
+step: login_attempt_4
+error: TargetClosedError: Page.goto: Target page, context or browser has been closed
+url: https://www.naukri.com/data-analyst-jobs-in-bangalore
