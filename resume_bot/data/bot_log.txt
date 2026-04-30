@@ -135,7 +135,7 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ...<3 lines>...
     )
-    ^
+    
   File "/home/rajan/.local/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
     raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
 playwright._impl._errors.TargetClosedError: BrowserType.launch: Target page, context or browser has been closed
@@ -200,7 +200,7 @@ Traceback (most recent call last):
     )
   File "/home/rajan/.local/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 69, in send
     return await self._connection.wrap_api_call(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           
     ...<3 lines>...
     )
     ^
@@ -321,13 +321,5 @@ Call log:
 [2026-04-29 14:03:11] Dry run mode: OFF
 [2026-04-29 14:03:11] Validate mode: OFF
 [2026-04-29 14:03:12] Browser engine: chromium
-[2026-04-29 14:03:12] Browser channel: chrome
-[2026-04-29 14:06:55] Naukri successful applies: 0
-[2026-04-29 14:07:03] Indeed successful applies: 0
-[2026-04-29 14:07:11] Internshala successful applies: 0
-[2026-04-29 14:07:13] Apna successful applies: 0
-[2026-04-29 14:07:13] SUMMARY Naukri: 0 applied
-[2026-04-29 14:07:13] SUMMARY Indeed: 0 applied
-[2026-04-29 14:07:13] SUMMARY Internshala: 0 applied
-[2026-04-29 14:07:13] SUMMARY Apna: 0 applied
-[2026-04-29 14:07:13] RUN COMPLETE. Total applications sent: 0
+
+    ...<3 lines>...
