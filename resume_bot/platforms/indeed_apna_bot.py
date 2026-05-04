@@ -101,12 +101,17 @@ class IndeedBot:
             await safe_goto(page, search_url)
             await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
             jobs = await page.query_selector_all("div.job_seen_beacon")
-            print(f"Indeed listings found: {len(jobs)}")
+            total_jobs = len(jobs)
+            print(f"Indeed listings found: {total_jobs}")
 
-            for idx, job in enumerate(jobs[: self.max_jobs_per_search], start=1):
+            for idx in range(min(total_jobs, self.max_jobs_per_search)):
                 if self.applied_count >= self.max_apps:
                     break
                 try:
+                    jobs = await page.query_selector_all("div.job_seen_beacon")
+                    if idx >= len(jobs):
+                        break
+                    job = jobs[idx]
                     title_el = await first_visible(job, ["h2.jobTitle span", "h2 a span"])
                     company_el = await first_visible(job, ["span.companyName"])
                     location_el = await first_visible(job, ["div.companyLocation"])
@@ -118,9 +123,30 @@ class IndeedBot:
                     location_text = (await location_el.inner_text()).strip() if location_el else location
                     flow = ApplicationStateMachine(self.platform_name, company, title)
 
-                    await title_el.click()
+                    card_link = await first_visible(
+                        job,
+                        [
+                            "h2.jobTitle a",
+                            "a.jcs-JobTitle",
+                            "a[data-jk]",
+                        ],
+                    )
+                    clicked = False
+                    if card_link:
+                        try:
+                            await card_link.click()
+                            clicked = True
+                        except Exception:  # noqa: BLE001
+                            clicked = False
+                    if not clicked:
+                        await job.click()
                     await human_pause(self.delay, self.delay_jitter_min, self.delay_jitter_max)
                     job_url = page.url
+                    if "/jobs?" in job_url or job_url.rstrip("/") == f"{self.base_url}/jobs":
+                        direct_link = await first_visible(job, ["h2.jobTitle a", "a.jcs-JobTitle", "a[data-jk]"])
+                        href = await direct_link.get_attribute("href") if direct_link else None
+                        if href:
+                            job_url = href if href.startswith("http") else f"{self.base_url}{href}"
                     flow.transition("job-opened")
 
                     if (not self.force_apply_mode) and is_duplicate_application(self.platform_name, company, title, job_url):
@@ -272,8 +298,8 @@ class IndeedBot:
                         notes="Matched keywords: " + ", ".join(matched_keywords[:8]) + f" | Flow: {flow.summary()}",
                     )
                 except Exception as job_exc:  # noqa: BLE001
-                    print(f"Indeed job #{idx} failed, continuing: {type(job_exc).__name__}: {job_exc}")
-                    await capture_failure(page, self.platform_name, f"job_loop_{idx}", job_exc)
+                    print(f"Indeed job #{idx + 1} failed, continuing: {type(job_exc).__name__}: {job_exc}")
+                    await capture_failure(page, self.platform_name, f"job_loop_{idx + 1}", job_exc)
                     continue
         except Exception as exc:  # noqa: BLE001
             await capture_failure(page, self.platform_name, "search_and_apply", exc)
