@@ -103,3 +103,4 @@ One manual run = one full session (then stops).
 Your cron is already set to run 8 times/day:
 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00, 22:00
 Per run, max applies are controlled by max_applications_per_day in config.py (currently 20).
+ helo ni 
